@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "packages": {
+    "onnx-audio-processor": {
+      "signature": "27878f525d80c9926a0c56ce2b5253bb",
+      "file": true
+    }
+  }
+}
