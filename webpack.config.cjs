@@ -2,7 +2,16 @@ const path = require('path');
 const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
-  entry: './main.js',
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+    ],
+  },
+  entry: './main.ts',
   mode: 'development',
   output: {
     filename: 'bundle.js',
@@ -19,7 +28,7 @@ module.exports = {
     }),
   ],
   resolve: {
-    extensions: ['.js'],
+    extensions: ['.ts', '.js'],
     modules: [
       path.resolve(__dirname, 'node_modules'),
       path.resolve(__dirname, './node_modules/onnxruntime-web/dist'),
