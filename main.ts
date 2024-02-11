@@ -7,7 +7,6 @@ import * as ort from 'onnxruntime-web';
 import { setFeatureExtractor, process } from 'onnx-audio-processor';
 
 
-
 async function initializeTensorFlow(): Promise<void> {
     await tf.ready();
 }
