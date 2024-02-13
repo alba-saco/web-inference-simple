@@ -4,7 +4,7 @@ declare global {
 
 import * as tf from '@tensorflow/tfjs';
 import * as ort from 'onnxruntime-web';
-import { setFeatureExtractor, process } from 'onnx-audio-processor';
+import { setFeatureExtractor, process, setClassifierPath, runClassifier } from 'onnx-audio-processor';
 
 
 async function initializeTensorFlow(): Promise<void> {
@@ -12,6 +12,7 @@ async function initializeTensorFlow(): Promise<void> {
 }
 
 async function processAudio(): Promise<void> {
+    const processStartTime = performance.now();
     const vggishModelURL = './audioset-vggish-3.onnx'
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -31,26 +32,16 @@ async function processAudio(): Promise<void> {
     if (!pprocOutput) {
         throw new Error('pprocOutput is null or undefined');
     }
+    console.log("pprocOutput")
     console.log(pprocOutput);
 
     // Load bg noise detector model
     const bgModelPath = './bg_noise_detection.onnx';
-    const bgSession = await ort.InferenceSession.create(bgModelPath);
+    setClassifierPath(bgModelPath)
+    runClassifier(pprocOutput);
+    const processEndTime = performance.now();
 
-    // Run bg noise detector model
-    const bgInputArray = pprocOutput.data instanceof Float32Array ? Array.from(new Float32Array(pprocOutput.data.buffer)) : [];
-    const bgInputName = bgSession.inputNames[0];
-
-    const bgInputTensor = new ort.Tensor('float32', bgInputArray, pprocOutput.dims);
-    const bgInputs = { [bgInputName]: bgInputTensor };
-    const bgOutput = await bgSession.run(bgInputs);
-    if (!bgOutput) {
-        throw new Error('bgOutput is null or undefined');
-    }
-
-    console.log("bgOutput")
-    // Output from the classifier
-    console.log(bgOutput);
+    console.log(`Time taken for overall processing: ${processEndTime - processStartTime} milliseconds`);
         
 }
 
