@@ -3,3 +3,5 @@ yalc.lock
 .yalc/
 dist/
 node_modules/
+.DS_Store
+tfjs/

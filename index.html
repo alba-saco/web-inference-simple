@@ -13,10 +13,15 @@
 </head>
 <body>
     <input type="file" id="audioFileInput" accept="audio/*">
-    <button id="processAudioButton">Process Audio</button>
     <br><br>
-    <button id="startAudioContextButton">Start Audio Context</button>
+    <button id="processAudioButton">Process Audio with Onnx</button>
     <br><br>
+    <button id="processAudioWebGL">Process Audio with TFJS/WebGL</button>
+    <br><br>
+    <button id="processAudioWebGPU">Process Audio with TFJS/WebGPU</button>
+    <br><br>
+    <!-- <button id="startAudioContextButton">Start Audio Context</button> -->
+    <!-- <br><br> -->
     <div id="loader" style="display: none;">
         <p id="loadingText">Loading...</p>
         <progress id="progressBar" value="0" max="100"></progress>
