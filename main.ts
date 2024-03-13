@@ -7,11 +7,11 @@ import '@tensorflow/tfjs-backend-webgpu';
 import * as ort from 'onnxruntime-web';
 import { setFeatureExtractor, runFeatureExtractor, setClassifier, runClassifier, preprocess, postprocess } from 'web-audio-classifier';
 
-const canvas = document.createElement('canvas');
-const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-
 let executionMode:string;
 
+// Testing WebGPU and WebGL envs
+const canvas = document.createElement('canvas');
+const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 if (gl && gl instanceof WebGLRenderingContext) {
     console.log('WebGL is supported.');
 } else {
