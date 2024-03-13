@@ -4,38 +4,21 @@ declare global {
 
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-webgpu';
-import * as ort from 'onnxruntime-web';
-import { setFeatureExtractor, runFeatureExtractor, setClassifier, runClassifier, preprocess, postprocess } from 'web-audio-classifier';
-
-let executionMode:string;
-
-// Testing WebGPU and WebGL envs
-const canvas = document.createElement('canvas');
-const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-if (gl && gl instanceof WebGLRenderingContext) {
-    console.log('WebGL is supported.');
-} else {
-    console.log('WebGL is not supported.');
-}
-
-if ('gpu' in navigator) {
-    console.log('WebGPU is supported in this environment');
-} else {
-    console.log('WebGPU is not supported in this environment');
-}
+import { preprocess, postprocess } from 'web-audio-classifier';
 
 async function initializeTensorFlow(): Promise<void> {
+    const backend = 'gpu' in navigator ? 'webgpu' : 'webgl';
+    await tf.setBackend(backend);
     await tf.ready();
+    console.log(`Using TensorFlow backend: ${backend}`);
 }
 
 async function processAudio(): Promise<void> {
-    const processStartTime = performance.now();
-    // const vggishModelURL = './audioset-vggish-3.onnx'
-    const vggishModelURL = './vggish-opset-20.onnx'
-
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+    console.time('tfjs init')
     await initializeTensorFlow();
+    console.timeEnd('tfjs init')
 
     const inputElement = document.getElementById('audioFileInput') as HTMLInputElement;
     if (!inputElement.files) {
@@ -45,61 +28,20 @@ async function processAudio(): Promise<void> {
 
     const audioBuffer = await readWavFile(selectedFile, audioCtx);
 
-    let pprocOutput;
-    if (executionMode == 'onnx') {
-        console.log("Running feature extractor with onnx")
-        setFeatureExtractor(vggishModelURL);
-        pprocOutput = await runFeatureExtractor(audioBuffer);
-    }
-    else if (executionMode == 'tf-webgl') {
-        await tf.setBackend('webgl');
-        console.log("Running feature extractor in TJFS with WebGL backend")
-        console.log("Loading model")
+    console.time('model load')
+    const model = await tf.loadGraphModel('tfjs/model.json');
+    console.timeEnd('model load')
 
-        let modelLoadStart = performance.now();
-        const model = await tf.loadGraphModel('tfjs/model.json');
-        let modelLoadEnd = performance.now();
-        console.log(`Time taken for model load: ${modelLoadEnd - modelLoadStart} milliseconds`);
-
-        pprocOutput = await runInferenceTF(audioBuffer, model)
-    }
-    else if (executionMode == 'tf-webgpu') {
-        await tf.setBackend('webgpu');
-        console.log("Running feature extractor in TJFS with WebGPU backend")
-        console.log("Loading model")
-
-        let modelLoadStart = performance.now();
-        const model = await tf.loadGraphModel('tfjs/model.json');
-        let modelLoadEnd = performance.now();
-        console.log(`Time taken for model load: ${modelLoadEnd - modelLoadStart} milliseconds`);
-
-        pprocOutput = await runInferenceTF(audioBuffer, model)
-    }
-    if (!pprocOutput) {
-        throw new Error('pprocOutput is null or undefined');
-    }
-    const processEndTime = performance.now();
-    console.log(`Absolute total time for feature extraction: ${processEndTime - processStartTime} milliseconds`);
-
-    console.log("post-processed feature extraction output: ")
-    console.log(pprocOutput);
-
-    // Load bg noise detector model
-    // const bgModelPath = './bg_noise_detection.onnx';
-    // setClassifier(bgModelPath)
-    // runClassifier(pprocOutput);
-    // const processEndTime = performance.now();
-
-    // console.log(`Time taken for overall processing: ${processEndTime - processStartTime} milliseconds`);
-        
+    console.time('total inference')
+    const pprocOutput = await runInferenceTF(audioBuffer, model)
+    console.timeEnd('total inference')
+    if (!pprocOutput) throw new Error('pprocOutput is null or undefined');
 }
 
 async function runInferenceTF(audioBuffer: AudioBuffer, model: tf.GraphModel) {
-    let preprocessStart = performance.now();
+    console.time('preprocess')
     const inputData = await preprocess(audioBuffer);
-    let preprocessEnd = performance.now();
-
-    console.log(`Time taken for preprocess: ${preprocessEnd - preprocessStart} milliseconds`);
+    console.timeEnd('preprocess')
 
     try {
         const ortOutputsList = [];
@@ -110,7 +52,7 @@ async function runInferenceTF(audioBuffer: AudioBuffer, model: tf.GraphModel) {
 
         const [batchSize, channels, height, width] = inputData.shape;
 
-        let inferenceStart = performance.now();
+        console.time('vggish inference')
         for (let batch = 0; batch < batchSize; batch++) {
             // Assuming input_data is a 3D tensor (similar to permute(2, 1, 0) in Python)
             const input_data_batch = inputData.slice([batch, 0, 0, 0], [1, 1, height, width]);
@@ -133,18 +75,11 @@ async function runInferenceTF(audioBuffer: AudioBuffer, model: tf.GraphModel) {
             // Push the output to the list
             ortOutputsList.push(outputArray);
         }
-        let inferenceEnd = performance.now();
-
-        console.log(`Time taken for VGGish inference (hot): ${inferenceEnd - inferenceStart} milliseconds`);
-
-        console.log("ortOutputsList");
-        console.log(ortOutputsList);
-
-        let postProcessStart = performance.now();
+        console.timeEnd('vggish inference')
+        
+        console.time('postprocess')
         const output = ortOutputsList ? postprocess(ortOutputsList) : null;
-        let postProcessEnd = performance.now();
-
-        console.log(`Time taken for postprocessing: ${postProcessEnd - postProcessStart} milliseconds`);
+        console.timeEnd('postprocess')
         return output;
     } catch (error) {
         console.error('Error during inference:', error);
@@ -153,34 +88,7 @@ async function runInferenceTF(audioBuffer: AudioBuffer, model: tf.GraphModel) {
 }
 
 const processAudioButton = document.getElementById('processAudioButton');
-const processWASMButton = document.getElementById('processAudioWebGL');
-const processWebGPUButton = document.getElementById('processAudioWebGPU');
-
-if (processAudioButton) {
-    processAudioButton.addEventListener('click', processOnnx);
-}
-if (processWASMButton) {
-    processWASMButton.addEventListener('click', processTFWebGL);
-}
-if (processWebGPUButton) {
-    processWebGPUButton.addEventListener('click', processTFWebGPU);
-}
-
-function processOnnx() {
-    executionMode = 'onnx'
-    processAudio()
-}
-
-function processTFWebGL() {
-    executionMode = 'tf-webgl'
-    processAudio()
-}
-
-function processTFWebGPU() {
-    executionMode = 'tf-webgpu'
-    processAudio()
-}
-
+processAudioButton?.addEventListener('click', processAudio);
 
 function readWavFile(file: File, audioCtx: AudioContext): Promise<AudioBuffer> {
     return new Promise((resolve, reject) => {
